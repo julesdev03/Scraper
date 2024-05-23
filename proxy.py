@@ -54,6 +54,7 @@ class ProxyManager():
         except Exception as e:
             # Write the error
             logManager('Error', str(e))
+            raise Exception('Error')
 
     def changeIp(self):
         randomCountry = random.choice(self.countries)
