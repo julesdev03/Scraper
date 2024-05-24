@@ -5,14 +5,17 @@ import re
 import xml.etree.ElementTree as ET
 import pandas as pd
 import os
+from bs4 import BeautifulSoup
+import json
 
 class ScrapVotes():
     url_vote = 'https://www.europarl.europa.eu/doceo/document/PV-9-{date}-RCV_EN.xml'
     alt_url_vote = 'https://www.europarl.europa.eu/doceo/document/PV-9-{date}-RCV_FR.xml'
     file_path = 'votes/VOTE-{date}.xml'
     votes_directory = 'votes/'
+    url_file = "https://www.europarl.europa.eu/doceo/document/{file_number}_EN.html"
 
-    def __init__(self, Date=None) -> None:
+    def __init__(self, Date=None, downloadVote=True, processVote=True, processInterinstitutional=True) -> None:
         today = datetime.now().strftime("%Y-%m-%d")
         # If no date inserted, download today
         if Date == None:
@@ -20,7 +23,34 @@ class ScrapVotes():
         else:
             self.Date = Date.strftime('%Y-%m-%d')
         self.ProxyMana = ProxyManager()
-    
+
+        # Make the steps based on the input
+        if downloadVote == True:
+            self.getVote()
+        if processVote == True:
+            self.processVote()
+        # Can not process interinstitutional without processing the vote get the data
+        if processInterinstitutional == True and processVote == True:
+            self.getInterinstitutionalFileNumber()
+        # If everything is processed, add to the list of already processed files
+        if downloadVote == True and processVote == True and processInterinstitutional == True:
+            self.addToListAlreadyProcessed()
+        
+    def addToListAlreadyProcessed(self):
+        listDates = []
+        # Get the list in the file if the file exists
+        try:
+            with open(self.votes_directory+'votes_processed.json') as f:
+                    listDates = json.load(f)
+        except:
+            pass
+        # Append the list regardless of whether it previously existed
+        if self.Date not in listDates:
+            listDates.append(self.Date)
+        # Overwrite the file
+        with open(self.votes_directory+'votes_processed.json', 'w+') as f:
+            f.write(json.dumps(listDates))
+
     def getVote(self):
         try:
             # Try first the url for FR xml
@@ -178,14 +208,10 @@ class ScrapVotes():
                 # Append the list of votes
                 listVotes.append({'Identifier': UniqueIdentifier, 'FileNumber': FileNumber, 'Date': self.Date, 'Type':voteType, 'Title':RcvDescription, 'InterinstitutionalNumber':'', 'For':For, 'Against':Against, 'Abstention':Abstention})
 
-                # Try to save as csv
-            try:
-                dflistVotes = pd.DataFrame.from_records(listVotes)
-                dflistMepsVotes = pd.DataFrame.from_records(listMepsVotes)
-                dflistMepsVotes.to_csv(self.votes_directory+self.Date+'_meps_vote'+'.csv', index=False)
-                dflistVotes.to_csv(self.votes_directory+self.Date+'_list_vote'+'.csv', index=False)
-            except Exception as e:
-                logManager('Error', str(e))
+            # Try to save as csv
+            self.listVotes = listVotes
+            self.saveAsCsv(data=listMepsVotes, fileName=self.votes_directory+self.Date+'_meps_vote'+'.csv')
+            self.saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date+'_list_vote'+'.csv')
         except Exception as e:
             logManager('Error', str(e))
         
@@ -193,5 +219,79 @@ class ScrapVotes():
 
     def deleteVoteFiles(self):
         os.remove(self.file_path.replace('{date}', self.Date))
+    
+    def saveAsCsv(self, data, fileName):
+        try:
+            df = pd.DataFrame.from_records(data)
+            df.to_csv(fileName, index=False)
+        except Exception as e:
+            logManager('Error', str(e))
+
+    def getTermInFileNumber(self, string):
+        numbers = ''
+        alphabets = '' 
+        # Iterate through each character in the given string
+        for char in string:
+            # Check if the character is an alphabet
+            if char.isalpha():
+                # If it is an alphabet, append it to the alphabets string
+                alphabets += char
+            # Check if the character is a number
+            elif char.isnumeric():
+                # If it is a number, append it to the numbers string
+                numbers += char
+        return numbers
+
+    def buildUrlFile(self, fileNumber):
+        print(fileNumber)
+        # Take the different file number possibilities and adapt it for the url (A, B, RC-B)
+        if fileNumber[:1] in ['A', 'B', 'C']:
+            split_file = fileNumber.split('-')
+            term = self.getTermInFileNumber(split_file[0])
+            number, year = split_file[1].split('/')
+            finalNumber = f"{fileNumber[:1]}-{term}-{year}-{number}"
+        elif fileNumber[:2] == 'RC':
+            split_file = fileNumber.split('-')
+            term = self.getTermInFileNumber(split_file[1])
+            number, year = split_file[2].split('/')
+            finalNumber = f"RC-{term}-{year}-{number}"
+        else:
+            return None
+        toReturn = self.url_file.replace('{file_number}', finalNumber)
+        return toReturn
+
+    def getInterinstitutionalFileNumber(self):
+        # Get a list of unique fileNumbers
+        listFiles = []
+        # Dictionary equivalence
+        equivalence = {}
+        # get interinstitutional file number per file
+        for file in self.listVotes:
+            # Check if file number already processed
+            if file['FileNumber'] not in listFiles:
+                # Get the html, parse it
+                url = self.buildUrlFile(file['FileNumber'])
+                # If the file number was not planned, then it returns none so skip that file
+                if url == None:
+                    continue
+                try:
+                    fp = self.ProxyMana.requestHandler(url).text
+                    soup = BeautifulSoup(fp, "html.parser")
+                    # Contained in a p element with a unique class, inside an a element after that
+                    getThePElement = soup.find("p", class_="m-lg-0")
+                    # Get the last one to avoid getting the COM proposal when it appears
+                    aElement = getThePElement.find_all("a")[-1]
+                    InterinstitutionalNumber = aElement.text
+                    equivalence[file['FileNumber']] = InterinstitutionalNumber
+                    # Edit the dict
+                    file['InterinstitutionalNumber'] = InterinstitutionalNumber
+                    listFiles.append(file['FileNumber'])
+                except:
+                    pass                
+            else:
+                # If there is an equivalent 
+                file['InterinstitutionalNumber'] = equivalence[file['FileNumber']]
+        # Save as csv
+        self.saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date+'_list_vote'+'.csv')
                 
         
