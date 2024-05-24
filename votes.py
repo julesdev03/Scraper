@@ -118,8 +118,11 @@ class ScrapVotes():
                     if resultFor:
                         for groups in resultFor.findall("Result.PoliticalGroup.List"):
                             for meps in groups.findall("PoliticalGroup.Member.Name"):
-                                # Append the vote
-                                listMepsVotes.append({'PersId': meps.get("PersId"), 'Identifier': UniqueIdentifier, 'Vote':'For', 'Corrected':'No'})
+                                try:
+                                    # Append the vote
+                                    listMepsVotes.append({'PersId':meps.get("PersId"),'MepId':meps.get('MepId'), 'Identifier': UniqueIdentifier, 'Vote':'For', 'Corrected':'No'})
+                                except:
+                                    listMepsVotes.append({'MepId':meps.get('MepId'), 'Identifier': UniqueIdentifier, 'Vote':'For', 'Corrected':'No'})
                 except Exception as e:
                     logManager('Error', str(e))
                 
@@ -130,8 +133,11 @@ class ScrapVotes():
                     if resultAgainst:
                         for groups in resultAgainst.findall("Result.PoliticalGroup.List"):
                             for meps in groups.findall("PoliticalGroup.Member.Name"):
-                                # Append the vote
-                                listMepsVotes.append({'PersId': meps.get("PersId"), 'Identifier': UniqueIdentifier, 'Vote':'Against', 'Corrected':'No'})
+                                try:
+                                    # Append the vote
+                                    listMepsVotes.append({'PersId':meps.get("PersId"),'MepId':meps.get('MepId'), 'Identifier': UniqueIdentifier, 'Vote':'Against', 'Corrected':'No'})
+                                except:
+                                    listMepsVotes.append({'MepId':meps.get('MepId'), 'Identifier': UniqueIdentifier, 'Vote':'Against', 'Corrected':'No'})
                 except Exception as e:
                     logManager('Error', str(e))
                 
@@ -142,8 +148,13 @@ class ScrapVotes():
                     if resultAbstention:
                         for groups in resultAbstention.findall("Result.PoliticalGroup.List"):
                             for meps in groups.findall("PoliticalGroup.Member.Name"):
-                                # Append the vote
-                                listMepsVotes.append({'PersId': meps.get("PersId"), 'Identifier': UniqueIdentifier, 'Vote':'Abstention', 'Corrected':'No'})
+                                # Create dictionary with all element, if PersId exists, append dict
+                                try:
+                                    # Append the vote
+                                    listMepsVotes.append({'PersId':meps.get("PersId"),'MepId':meps.get('MepId'), 'Identifier': UniqueIdentifier, 'Vote':'Abstention', 'Corrected':'No'})
+                                except:
+                                    listMepsVotes.append({'MepId':meps.get('MepId'), 'Identifier': UniqueIdentifier, 'Vote':'Abstention', 'Corrected':'No'})
+                                
                 except Exception as e:
                     logManager('Error', str(e))
                 
@@ -153,12 +164,15 @@ class ScrapVotes():
                     for intentionTypes in intention:
                         vote = intentionTypes.tag.split('.')[-1]
                         for meps in intentionTypes:
-                            PersId = meps.get('PersId')
+                            MepId = meps.get('MepId')
                             # Get the MEP matching the values and change his vote
-                            indexMepMatching = [i for i, d in enumerate(listMepsVotes) if PersId and UniqueIdentifier in d.values()][0]
-                            listMepsVotes[indexMepMatching]['Vote'] = vote
-                            listMepsVotes[indexMepMatching]['Corrected'] = 'Yes'
-                except:
+                            indexMepMatching = [i for i, d in enumerate(listMepsVotes) if str(MepId) == str(d['MepId']) and str(UniqueIdentifier) == str(d['Identifier'])]
+                            # Take into consideration possibilities of having no match or several matches
+                            if len(indexMepMatching) == 1:
+                                indexMepMatching = indexMepMatching[0]
+                                listMepsVotes[indexMepMatching]['Vote'] = vote
+                                listMepsVotes[indexMepMatching]['Corrected'] = 'Yes'                           
+                except Exception as e:
                     pass
 
                 # Append the list of votes
@@ -176,7 +190,7 @@ class ScrapVotes():
             logManager('Error', str(e))
         
         self.deleteVoteFiles()
-    
+
     def deleteVoteFiles(self):
         os.remove(self.file_path.replace('{date}', self.Date))
                 
