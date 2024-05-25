@@ -38,6 +38,7 @@ class ScrapVotes():
         
     def addToListAlreadyProcessed(self):
         listDates = []
+        date = self.Date.split('-')[2] + '-' + self.Date.split('-')[1] + '-' + self.Date.split('-')[0]
         # Get the list in the file if the file exists
         try:
             with open(self.votes_directory+'votes_processed.json') as f:
@@ -45,8 +46,8 @@ class ScrapVotes():
         except:
             pass
         # Append the list regardless of whether it previously existed
-        if self.Date not in listDates:
-            listDates.append(self.Date)
+        if date not in listDates:
+            listDates.append(date)
         # Overwrite the file
         with open(self.votes_directory+'votes_processed.json', 'w+') as f:
             f.write(json.dumps(listDates))
@@ -113,11 +114,17 @@ class ScrapVotes():
         except:
             pass
         try:
-            if "Ordre du jour" in RcvDescription:
+            if "Ordre du jour" in RcvDescription or self.checkIfAgenda(RcvDescription):
                 return "Agenda"
         except:
             pass
-        return None
+        return ''
+
+    def checkIfAgenda(self, title):
+        if 'agenda' in title:           
+            if [i for i in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] if i in title]:
+                return True
+        return False
     
     def processVote(self):
         # Parse votes in XML with myroot
@@ -215,7 +222,7 @@ class ScrapVotes():
         except Exception as e:
             logManager('Error', str(e))
         
-        self.deleteVoteFiles()
+        # self.deleteVoteFiles()
 
     def deleteVoteFiles(self):
         os.remove(self.file_path.replace('{date}', self.Date))
@@ -243,22 +250,28 @@ class ScrapVotes():
         return numbers
 
     def buildUrlFile(self, fileNumber):
-        print(fileNumber)
         # Take the different file number possibilities and adapt it for the url (A, B, RC-B)
-        if fileNumber[:1] in ['A', 'B', 'C']:
-            split_file = fileNumber.split('-')
-            term = self.getTermInFileNumber(split_file[0])
-            number, year = split_file[1].split('/')
-            finalNumber = f"{fileNumber[:1]}-{term}-{year}-{number}"
-        elif fileNumber[:2] == 'RC':
-            split_file = fileNumber.split('-')
-            term = self.getTermInFileNumber(split_file[1])
-            number, year = split_file[2].split('/')
-            finalNumber = f"RC-{term}-{year}-{number}"
-        else:
-            return None
-        toReturn = self.url_file.replace('{file_number}', finalNumber)
-        return toReturn
+        try:
+            if fileNumber == "Agenda":
+                return None
+            # Get the file number for the url for report (A), resolution (B) or (C) probably objection
+            elif fileNumber[:1] in ['A', 'B', 'C']:
+                split_file = fileNumber.split('-')
+                term = self.getTermInFileNumber(split_file[0])
+                number, year = split_file[1].split('/')
+                finalNumber = f"{fileNumber[:1]}-{term}-{year}-{number}"
+            # Same but for joint motion for resolution (RC)
+            elif fileNumber[:2] == 'RC':
+                split_file = fileNumber.split('-')
+                term = self.getTermInFileNumber(split_file[1])
+                number, year = split_file[2].split('/')
+                finalNumber = f"RC-{term}-{year}-{number}"
+            else:
+                return None
+            toReturn = self.url_file.replace('{file_number}', finalNumber)
+            return toReturn
+        except Exception as e:
+            logManager('Error', e, "PROCESS: buildUrlFile(); FILE_NUMBER: "+fileNumber)
 
     def getInterinstitutionalFileNumber(self):
         # Get a list of unique fileNumbers
@@ -269,12 +282,12 @@ class ScrapVotes():
         for file in self.listVotes:
             # Check if file number already processed
             if file['FileNumber'] not in listFiles:
-                # Get the html, parse it
-                url = self.buildUrlFile(file['FileNumber'])
-                # If the file number was not planned, then it returns none so skip that file
-                if url == None:
-                    continue
                 try:
+                    # Get the html, parse it
+                    url = self.buildUrlFile(file['FileNumber'])
+                    # If the file number was not planned, then it returns none so skip that file
+                    if url == None:
+                        continue
                     fp = self.ProxyMana.requestHandler(url).text
                     soup = BeautifulSoup(fp, "html.parser")
                     # Contained in a p element with a unique class, inside an a element after that

@@ -2,7 +2,7 @@ from datetime import datetime
 
 class logManager():
 
-    def __init__(self, type, info) -> None:
+    def __init__(self, type, info, additional_data='') -> None:
         timestamp = datetime.now()
         self.errorFile = "logs/"+timestamp.strftime("%d-%m-%Y")+".txt"
         self.RequestLogFile = "logs/RequestsLog/"+timestamp.strftime("%d-%m-%Y")+".txt"
@@ -11,7 +11,7 @@ class logManager():
         if type == "Error":
             try:
                 with open(self.errorFile, 'a') as f:
-                    f.write(timeStampStr+"\n"+info+"\n")
+                    f.write(timeStampStr+"\n"+info+"\n"+additional_data+"\n")
             except:
                 pass
         
