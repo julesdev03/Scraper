@@ -7,6 +7,7 @@ import pandas as pd
 import os
 from bs4 import BeautifulSoup
 import json
+from general_functions import *
 
 class ScrapVotes():
     url_vote = 'https://www.europarl.europa.eu/doceo/document/PV-9-{date}-RCV_EN.xml'
@@ -214,11 +215,10 @@ class ScrapVotes():
 
                 # Append the list of votes
                 listVotes.append({'Identifier': UniqueIdentifier, 'FileNumber': FileNumber, 'Date': self.Date, 'Type':voteType, 'Title':RcvDescription, 'InterinstitutionalNumber':'', 'For':For, 'Against':Against, 'Abstention':Abstention})
-
             # Try to save as csv
             self.listVotes = listVotes
-            self.saveAsCsv(data=listMepsVotes, fileName=self.votes_directory+self.Date+'_meps_vote'+'.csv')
-            self.saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date+'_list_vote'+'.csv')
+            saveAsCsv(data=listMepsVotes, fileName=self.votes_directory+self.Date+'_meps_vote'+'.csv')
+            saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date+'_list_vote'+'.csv')
         except Exception as e:
             logManager('Error', str(e))
         
@@ -227,13 +227,6 @@ class ScrapVotes():
     def deleteVoteFiles(self):
         os.remove(self.file_path.replace('{date}', self.Date))
     
-    def saveAsCsv(self, data, fileName):
-        try:
-            df = pd.DataFrame.from_records(data)
-            df.to_csv(fileName, index=False)
-        except Exception as e:
-            logManager('Error', str(e))
-
     def getTermInFileNumber(self, string):
         numbers = ''
         alphabets = '' 
@@ -305,6 +298,6 @@ class ScrapVotes():
                 # If there is an equivalent 
                 file['InterinstitutionalNumber'] = equivalence[file['FileNumber']]
         # Save as csv
-        self.saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date+'_list_vote'+'.csv')
+        saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date+'_list_vote'+'.csv')
                 
         

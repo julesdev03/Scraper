@@ -2,6 +2,7 @@ import subprocess
 import requests
 import random
 from logManager import logManager
+import urllib.request
 
 class ProxyManager():
     countries = ['US', 'FR', 'BE', 'DE', 'GB', 'FI', 'GR', 'HR', 'HU', 'DK', 'EE']
@@ -54,7 +55,17 @@ class ProxyManager():
         except Exception as e:
             # Write the error
             logManager('Error', str(e))
-            raise Exception('Error')
+            raise Exception('Request not delivered')
+    
+    def requestImageHandler(self, url, path):
+        self.appendCount()
+        try:
+            request = urllib.request.urlretrieve(url, path)
+            # Request registry
+        except Exception as e:
+            # Write the error
+            logManager('Error', str(e))
+            raise Exception('Request not delivered')
 
     def changeIp(self):
         randomCountry = random.choice(self.countries)
