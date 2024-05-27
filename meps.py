@@ -90,7 +90,6 @@ class ScrapMep():
     def currentMepsProcess(self):
         try:
             myroot = ET.parse(self.directory_name+'current.xml').getroot()
-            list_ = []
             # Get all meps and parse them
             for mep in myroot.findall('mep'):
                 # Get the name
@@ -121,9 +120,33 @@ class ScrapMep():
                     EntryDate = '02-06-2019'
                 # Append to list Meps
                 self.list_meps.append({"PersId":PersId, "Name":Name, "EuParty":EuParty, "Country":Country, "NationalParty":NationalParty, "LeaveDate":LeaveDate, "EntryDate":EntryDate})
+            self.getMepId()
             saveAsCsv(data=self.list_meps, fileName=self.directory_name+self.Today+'_current.csv')
         except Exception as e:
             logManager('Error', e ,additional_data="CURRENT MEPs")
+
+    def getMepId(self):
+        # Get all the votes downloaded and dates
+        files = os.listdir('votes')
+        csv_files = [i for i in files if 'meps_vote.csv' in i]
+        dates = [datetime.strptime(i[:10], '%d-%m-%Y') for i in csv_files]
+        # Process the closest date to today and get the df of the votes
+        dates.sort(reverse=True)
+        df = csvToDf('votes/'+dates[0].strftime('%d-%m-%Y')+'_meps_vote.csv')
+        # Keep only one row per mep
+        df = df.drop_duplicates(subset=['PersId']).to_dict(orient='records')
+        # Process the meps one by one
+        for mep in self.list_meps:
+            try:
+                # row = df.loc[(str(df['PersId']) == str(mep['PersId']))]
+                row = [i for i in df if str(i['PersId']) == str(mep['PersId'])][0]
+                mep['MepId'] = str(row['MepId'])
+            except Exception as e:
+                if 'list index out of range' not in e:
+                    try:
+                        logManager('Error', e, "PROCESS: getMepId(), MEP: "+mep +', DATE: '+dates[0])
+                    except:
+                        logManager('Error', e, "PROCESS: getMepId()")
 
     def downloadMepsFile(self, type):
         try:
@@ -139,7 +162,7 @@ class ScrapMep():
     
     def downloadPictures(self):
         # Get the list of already existing pictures
-        list_files = os.listdir('meps/pictures')
+        list_files = os.listdir(self.directory_name+'pictures')
         listPersId = []
         for els in list_files:
             els = els[:-4]
@@ -156,9 +179,9 @@ class ScrapMep():
                 listNewPictures.append(PersId)
             except:
                 pass
-        self.addToListPicturesrocessed(listNewPictures)
+        self.addToListPicturesProcessed(listNewPictures)
     
-    def addToListPicturesrocessed(self, listNewPictures):
+    def addToListPicturesProcessed(self, listNewPictures):
         # Overwrite the file
         with open(self.directory_name+'new_pictures.json', 'w+') as f:
             f.write(json.dumps(listNewPictures))

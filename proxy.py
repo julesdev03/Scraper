@@ -64,7 +64,7 @@ class ProxyManager():
             # Request registry
         except Exception as e:
             # Write the error
-            logManager('Error', str(e))
+            logManager('Error', str(e), additional_data=url)
             raise Exception('Request not delivered')
 
     def changeIp(self):

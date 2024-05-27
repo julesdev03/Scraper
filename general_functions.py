@@ -50,3 +50,10 @@ def saveAsCsv(data, fileName):
         df.to_csv(fileName, index=False)
     except Exception as e:
         logManager('Error', str(e))
+
+def csvToDf(fileName):
+    try:
+        df = pd.read_csv(fileName)
+        return df
+    except Exception as e:
+        logManager('Error', str(e))

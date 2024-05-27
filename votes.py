@@ -3,7 +3,6 @@ from logManager import logManager
 from datetime import datetime
 import re
 import xml.etree.ElementTree as ET
-import pandas as pd
 import os
 from bs4 import BeautifulSoup
 import json
@@ -17,12 +16,12 @@ class ScrapVotes():
     url_file = "https://www.europarl.europa.eu/doceo/document/{file_number}_EN.html"
 
     def __init__(self, Date=None, downloadVote=True, processVote=True, processInterinstitutional=True) -> None:
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now()
         # If no date inserted, download today
         if Date == None:
             self.Date = today
         else:
-            self.Date = Date.strftime('%Y-%m-%d')
+            self.Date = Date
         self.ProxyMana = ProxyManager()
 
         # Make the steps based on the input
@@ -39,7 +38,7 @@ class ScrapVotes():
         
     def addToListAlreadyProcessed(self):
         listDates = []
-        date = self.Date.split('-')[2] + '-' + self.Date.split('-')[1] + '-' + self.Date.split('-')[0]
+        date = self.Date.strftime('%d-%m-%Y')
         # Get the list in the file if the file exists
         try:
             with open(self.votes_directory+'votes_processed.json') as f:
@@ -56,22 +55,22 @@ class ScrapVotes():
     def getVote(self):
         try:
             # Try first the url for FR xml
-            url = self.url_vote.replace('{date}', self.Date)
+            url = self.url_vote.replace('{date}', self.Date.strftime('%Y-%m-%d'))
             r = self.ProxyMana.requestHandler(url)
-            open(self.file_path.replace("{date}", self.Date), "wb").write(r.content)
+            open(self.file_path.replace("{date}", self.Date.strftime('%d-%m-%Y')), "wb").write(r.content)
         except:
             try:
                 # Try with EN xml
-                alt_url = self.alt_url_vote.replace('{date}', self.Date)
+                alt_url = self.alt_url_vote.replace('{date}', self.Date.strftime('%Y-%m-%d'))
                 r = self.ProxyMana.requestHandler(alt_url)
-                open(self.file_path.replace("{date}", self.Date), "wb").write(r.content)
+                open(self.file_path.replace("{date}", self.Date.strftime('%d-%m-%Y')), "wb").write(r.content)
             except:
                 pass
     
     def getType(self, RcvDescription):
         try:
             # Manage when it is an agenda vote
-            if "Ordre du jour" in RcvDescription:
+            if "Ordre du jour" in RcvDescription or self.checkIfAgenda(RcvDescription):
                 # Dots or dash
                 if re.search("[a-z]{5,8}:", str(RcvDescription), re.IGNORECASE):
                     return RcvDescription.split(':')[1].strip() + " - " + RcvDescription.split(":")[0].strip()
@@ -130,7 +129,7 @@ class ScrapVotes():
     def processVote(self):
         # Parse votes in XML with myroot
         try:
-            myroot = ET.parse(self.file_path.replace("{date}", self.Date)).getroot()
+            myroot = ET.parse(self.file_path.replace("{date}", self.Date.strftime('%d-%m-%Y'))).getroot()
             # List of votes
             listVotes = []
             # List of MEPs votes
@@ -214,18 +213,18 @@ class ScrapVotes():
                     pass
 
                 # Append the list of votes
-                listVotes.append({'Identifier': UniqueIdentifier, 'FileNumber': FileNumber, 'Date': self.Date, 'Type':voteType, 'Title':RcvDescription, 'InterinstitutionalNumber':'', 'For':For, 'Against':Against, 'Abstention':Abstention})
+                listVotes.append({'Identifier': UniqueIdentifier, 'FileNumber': FileNumber, 'Date': self.Date.strftime('%d-%m-%Y'), 'Type':voteType, 'Title':RcvDescription, 'InterinstitutionalNumber':'', 'For':For, 'Against':Against, 'Abstention':Abstention})
             # Try to save as csv
             self.listVotes = listVotes
-            saveAsCsv(data=listMepsVotes, fileName=self.votes_directory+self.Date+'_meps_vote'+'.csv')
-            saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date+'_list_vote'+'.csv')
+            saveAsCsv(data=listMepsVotes, fileName=self.votes_directory+self.Date.strftime('%d-%m-%Y')+'_meps_vote'+'.csv')
+            saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date.strftime('%d-%m-%Y')+'_list_vote'+'.csv')
         except Exception as e:
             logManager('Error', str(e))
         
-        # self.deleteVoteFiles()
+        self.deleteVoteFiles()
 
     def deleteVoteFiles(self):
-        os.remove(self.file_path.replace('{date}', self.Date))
+        os.remove(self.file_path.replace('{date}', self.Date.strftime('%d-%m-%Y')))
     
     def getTermInFileNumber(self, string):
         numbers = ''
@@ -264,7 +263,11 @@ class ScrapVotes():
             toReturn = self.url_file.replace('{file_number}', finalNumber)
             return toReturn
         except Exception as e:
-            logManager('Error', e, "PROCESS: buildUrlFile(); FILE_NUMBER: "+fileNumber)
+            try:
+                logManager('Error', e, "PROCESS: buildUrlFile(); FILE_NUMBER: "+fileNumber)
+            except:
+                logManager('Error', e, "PROCESS: buildUrlFile(); FILE_NUMBER: NOT PROCESSABLE")
+
 
     def getInterinstitutionalFileNumber(self):
         # Get a list of unique fileNumbers
@@ -298,6 +301,6 @@ class ScrapVotes():
                 # If there is an equivalent 
                 file['InterinstitutionalNumber'] = equivalence[file['FileNumber']]
         # Save as csv
-        saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date+'_list_vote'+'.csv')
+        saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date.strftime('%d-%m-%Y')+'_list_vote'+'.csv')
                 
         
