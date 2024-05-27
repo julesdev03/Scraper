@@ -16,10 +16,10 @@ class ScrapVotes():
     url_file = "https://www.europarl.europa.eu/doceo/document/{file_number}_EN.html"
 
     def __init__(self, Date=None, downloadVote=True, processVote=True, processInterinstitutional=True) -> None:
-        today = datetime.now()
+        self.Today = datetime.now()
         # If no date inserted, download today
         if Date == None:
-            self.Date = today
+            self.Date = self.Today
         else:
             self.Date = Date
         self.ProxyMana = ProxyManager()
@@ -35,7 +35,20 @@ class ScrapVotes():
         # If everything is processed, add to the list of already processed files
         if downloadVote == True and processVote == True and processInterinstitutional == True:
             self.addToListAlreadyProcessed()
-        
+    
+    def returnMepsVotes(self, condition=None):
+        # Possibility to return only when one column has a specific value
+        votes = self.listMepsVotes
+        if type(condition) is dict:
+            votes = [i for i in votes if i[list(condition.keys())[0]] == condition[list(condition.keys())[0]]]
+        return votes
+    
+    def returnTaskAchieved(self):
+        return self.taskAchieved
+    
+    def returnListVotes(self):
+        return self.listVotes
+
     def addToListAlreadyProcessed(self):
         listDates = []
         date = self.Date.strftime('%d-%m-%Y')
@@ -216,8 +229,10 @@ class ScrapVotes():
                 listVotes.append({'Identifier': UniqueIdentifier, 'FileNumber': FileNumber, 'Date': self.Date.strftime('%d-%m-%Y'), 'Type':voteType, 'Title':RcvDescription, 'InterinstitutionalNumber':'', 'For':For, 'Against':Against, 'Abstention':Abstention})
             # Try to save as csv
             self.listVotes = listVotes
-            saveAsCsv(data=listMepsVotes, fileName=self.votes_directory+self.Date.strftime('%d-%m-%Y')+'_meps_vote'+'.csv')
-            saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date.strftime('%d-%m-%Y')+'_list_vote'+'.csv')
+            self.listMepsVotes = listMepsVotes
+            saveAsCsv(data=listMepsVotes, fileName=self.votes_directory+self.Date.strftime('%d-%m-%Y')+'_meps_vote_processed_'+self.Today.strftime('%d-%m-%Y')+'.csv')
+            saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date.strftime('%d-%m-%Y')+'_list_vote_processed_'+self.Today.strftime('%d-%m-%Y')+'.csv')
+            self.taskAchieved = True
         except Exception as e:
             logManager('Error', str(e))
         
@@ -301,6 +316,6 @@ class ScrapVotes():
                 # If there is an equivalent 
                 file['InterinstitutionalNumber'] = equivalence[file['FileNumber']]
         # Save as csv
-        saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date.strftime('%d-%m-%Y')+'_list_vote'+'.csv')
+        saveAsCsv(data=self.listVotes, fileName=self.votes_directory+self.Date.strftime('%d-%m-%Y')+'_list_vote_processed_'+self.Today.strftime('%d-%m-%Y')+'.csv')
                 
         

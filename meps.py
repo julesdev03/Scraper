@@ -45,6 +45,9 @@ class ScrapMep():
         
         if getPicture == True and processCurrent == True:
             self.downloadPictures()
+    
+    def returnMepList(self):
+        return self.list_meps
 
     def outgoingMepsProcess(self):
         try:
