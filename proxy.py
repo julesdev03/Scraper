@@ -28,9 +28,9 @@ class ProxyManager():
                 f.write(str(0))
 
     def appendCount(self):
-        # Check if it is the 30st request, then change the proxy if that is the case
+        # Check if it is the 40st request, then change the proxy if that is the case
         self.requestsCount += 1
-        if self.requestsCount > 30:
+        if self.requestsCount > 40:
             self.changeIp()
             self.requestsCount = 0
         # Overwrite the file with the new value
