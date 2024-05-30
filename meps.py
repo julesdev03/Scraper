@@ -18,6 +18,14 @@ class ScrapMep():
         self.ProxyMana = ProxyManager()
         today = datetime.now().strftime("%d-%m-%Y")
         self.Today = today
+
+        if processOutgoing == True:
+            # Get the file
+            self.downloadMepsFile(type='outgoing')
+            # Process outgoing meps
+            self.outgoingMepsProcess()
+            # Delete the file
+            os.remove(self.directory_name+"outgoing.xml")
         
         if processIncoming == True:
             # Get the file of the incoming
@@ -34,14 +42,6 @@ class ScrapMep():
             self.currentMepsProcess()
             # Delete the file
             os.remove(self.directory_name+"current.xml")
-
-        if processOutgoing == True:
-            # Get the file
-            self.downloadMepsFile(type='outgoing')
-            # Process outgoing meps
-            self.outgoingMepsProcess()
-            # Delete the file
-            os.remove(self.directory_name+"outgoing.xml")
         
         if getPicture == True and processCurrent == True:
             self.downloadPictures()
@@ -61,13 +61,19 @@ class ScrapMep():
                 # Get the PersId
                 PersId = clean_text(mep.find('id').text)
                 # Get the EuParty
-                EuParty = clean_text(political_parties[mep.find('politicalGroup').text])
+                try:
+                    EuParty = clean_text(political_parties[mep.find('politicalGroup').text])
+                except:
+                    pass
                 # NationalParty
-                NationalParty = clean_text(mep.find('nationalPoliticalGroup').text)
+                try:
+                    NationalParty = clean_text(mep.find('nationalPoliticalGroup').text)
+                except:
+                    pass
                 # Default leave date
-                LeaveDate = datetime.strptime(mep.find('mandate-end').text, '%d/%m/%Y')
+                LeaveDate = mep.find('mandate-end').text.replace('/', '-')
                 # Check for an entry date, otherwise default
-                EntryDate = datetime.strptime(mep.find('mandate-start').text, '%d/%m/%Y')
+                EntryDate = mep.find('mandate-start').text.replace('/', '-')
                 # Append to list Meps
                 self.list_meps.append({"PersId":PersId, "Name":Name, "EuParty":EuParty, "Country":Country, "NationalParty":NationalParty, "LeaveDate":LeaveDate, "EntryDate":EntryDate})
         except Exception as e:
@@ -83,7 +89,7 @@ class ScrapMep():
                 PersId = clean_text(mep.find('id').text)
                 # Entry date
                 date = clean_text(mep.find('mandate-start').text).replace('/', '-')
-                EntryDate = datetime.strptime(date, "%d-%m-%Y")
+                EntryDate = date
                 # Append to list Meps
                 list_.append({"PersId":PersId, "EntryDate":EntryDate})
             self.incoming = list_
@@ -119,8 +125,6 @@ class ScrapMep():
                                 EntryDate = els['EntryDate']
                 except:
                     pass
-                if EntryDate=='':
-                    EntryDate = '02-06-2019'
                 # Append to list Meps
                 self.list_meps.append({"PersId":PersId, "Name":Name, "EuParty":EuParty, "Country":Country, "NationalParty":NationalParty, "LeaveDate":LeaveDate, "EntryDate":EntryDate})
             self.getMepId()
@@ -131,25 +135,33 @@ class ScrapMep():
     def getMepId(self):
         # Get all the votes downloaded and dates
         files = os.listdir('votes')
-        csv_files = [i for i in files if 'meps_vote.csv' in i]
+        csv_files = [i for i in files if 'meps_vote' in i]
         dates = [datetime.strptime(i[:10], '%d-%m-%Y') for i in csv_files]
         # Process the closest date to today and get the df of the votes
         dates.sort(reverse=True)
-        df = csvToDf('votes/'+dates[0].strftime('%d-%m-%Y')+'_meps_vote.csv')
+        file_path = [i for i in csv_files if i[:10] == datetime.strftime(dates[0], '%d-%m-%Y')][0]
+        df = csvToDf('votes/'+file_path)
         # Keep only one row per mep
         df = df.drop_duplicates(subset=['PersId']).to_dict(orient='records')
         # Process the meps one by one
         for mep in self.list_meps:
+            print(len(self.list_meps))
             try:
                 # row = df.loc[(str(df['PersId']) == str(mep['PersId']))]
-                row = [i for i in df if str(i['PersId']) == str(mep['PersId'])][0]
-                mep['MepId'] = str(row['MepId'])
+                print(mep)
+                row = [i for i in df if str(i['PersId']) == str(mep['PersId'])]
+                if len(row) > 0:
+                   row = row[0]
+                   print(row)
+                   mep['MepId'] = str(row['MepId'])
             except Exception as e:
+                print(e)
                 if 'list index out of range' not in e:
                     try:
                         logManager('Error', e, "PROCESS: getMepId(), MEP: "+mep +', DATE: '+dates[0])
                     except:
                         logManager('Error', e, "PROCESS: getMepId()")
+                continue
 
     def downloadMepsFile(self, type):
         try:

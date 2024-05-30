@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from votes import ScrapVotes
 import json
 from logManager import logManager
+from proxy import ProxyManager
+import requests
 
 class ScrapPlanner():
 
@@ -18,9 +20,9 @@ class ScrapPlanner():
         self.sendRequest(date=self.Today, data=dates, typeData={'main': 'Dates'})
 
         # The try to scrap MEPs
-        mepScrap = ScrapMep(processIncoming=False, processOutgoing=False)
+        mepScrap = ScrapMep(processIncoming=True, processCurrent=True, processOutgoing=True)
         meps = mepScrap.returnMepList()
-        self.sendRequest(date=self.Today, data=meps, typeData={'main': 'CurrentMEPs', 'subType': 'regular'})
+        self.sendRequest(date=self.Today, data=meps, typeData={'main': 'CurrentMEPs', 'subType': 'original'})
 
         # Get the votes of the last fifteen days for any correction
         self.votesCorrections(dates=dates)
@@ -42,7 +44,7 @@ class ScrapPlanner():
             returnValue = self.getVotes()
             
             if returnValue == True and time_to_sleep == 1200:
-                time_to_sleep *= 3
+                time_to_sleep *= 4.5
             time.sleep(time_to_sleep)
 
     def getVotes(self):
@@ -55,6 +57,7 @@ class ScrapPlanner():
             return True
         return False
 
+
     def sendRequest(self, date, data, typeData):
         # Make data a string
         r = {
@@ -65,10 +68,16 @@ class ScrapPlanner():
         r = json.dumps(r)
         with open('test/'+typeData['main']+'.json', 'w+') as f:
             f.write(r)
+        headers = {
+            'Key': 'HELLO_WORLD',
+            'Content-Type': 'application/json'
+        }
+        response = requests.post(url='http://127.0.0.1:5000/saver', json=r, headers=headers)
+        print(response)
     
     def votesCorrections(self, dates):
         todayDate = datetime.now()
-        startDate = todayDate - timedelta(days=16)
+        startDate = todayDate - timedelta(days=40)
         matchingDates = [datetime.strptime(i, '%d-%m-%Y') for i in dates if startDate <= datetime.strptime(i, '%d-%m-%Y') < todayDate]
         # Check which dates were already processed
         already_processed = []
@@ -90,6 +99,7 @@ class ScrapPlanner():
                 self.sendRequest(matching.strftime('%d-%m-%Y'), data=data, typeData={'main': 'ListVotes'})
                 data = scrapVotes.returnMepsVotes()
                 self.sendRequest(matching.strftime('%d-%m-%Y'), data=data, typeData={'main': 'MepsVotes'})
+
 
 
 
